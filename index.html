@@ -1,186 +1,208 @@
 <!DOCTYPE html>
 <html lang="en">
+
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Barcode Scanner</title>
-    <script src="https://cdn.jsdelivr.net/npm/quagga@0.12.1/dist/quagga.min.js"></script>
-    <style>
-        body {
-            font-family: Arial, sans-serif;
-            display: flex;
-            justify-content: center;
-            align-items: center;
-            min-height: 100vh;
-            margin: 0;
-            background-color: #f0f0f0;
-        }
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Barcode Scanner</title>
+  <script src="https://cdn.jsdelivr.net/npm/quagga@0.12.1/dist/quagga.min.js"></script>
+  <style>
+    body {
+      font-family: Arial, sans-serif;
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      min-height: 100vh;
+      margin: 0;
+      background-color: #f0f0f0;
+    }
 
-        .scanner-container {
-            background-color: white;
-            padding: 20px;
-            border-radius: 10px;
-            box-shadow: 0 0 10px rgba(0,0,0,0.1);
-            text-align: center;
-            width: 90%;
-            max-width: 400px;
-        }
+    .scanner-container {
+      background-color: white;
+      padding: 20px;
+      border-radius: 10px;
+      box-shadow: 0 0 10px rgba(0, 0, 0, 0.1);
+      text-align: center;
+      width: 90%;
+      max-width: 400px;
+    }
 
-        #scanner-window {
-            width: 100%;
-            height: 300px;
-            background-color: #333;
-            margin: 20px 0;
-            position: relative;
-        }
+    #scanner-window {
+      width: 100%;
+      height: 300px;
+      background-color: #333;
+      margin: 20px 0;
+      position: relative;
+      overflow: hidden;
+    }
 
-        #scanResult {
-            margin: 20px 0;
-            padding: 10px;
-            background-color: #f5f5f5;
-            border-radius: 5px;
-            min-height: 40px;
-            word-wrap: break-word;
-        }
+    .scan-line {
+      position: absolute;
+      width: 100%;
+      height: 2px;
+      background-color: red;
+      top: 0;
+      animation: scan 2s infinite linear;
+      display: none;
+    }
 
-        button {
-            padding: 10px 20px;
-            background-color: #007bff;
-            color: white;
-            border: none;
-            border-radius: 5px;
-            cursor: pointer;
-            margin: 5px;
-        }
+    @keyframes scan {
+      0% {
+        top: 0;
+      }
 
-        button:hover {
-            background-color: #0056b3;
-        }
-    </style>
+      50% {
+        top: calc(100% - 2px);
+      }
+
+      100% {
+        top: 0;
+      }
+    }
+
+    #scanResult {
+      margin: 20px 0;
+      padding: 10px;
+      background-color: #f5f5f5;
+      border-radius: 5px;
+      min-height: 40px;
+      word-wrap: break-word;
+    }
+
+    button {
+      padding: 10px 20px;
+      background-color: #007bff;
+      color: white;
+      border: none;
+      border-radius: 5px;
+      cursor: pointer;
+      margin: 5px;
+    }
+
+    button:hover {
+      background-color: #0056b3;
+    }
+  </style>
 </head>
+
 <body>
-    <div class="scanner-container">
-        <h2>Barcode Scanner</h2>
-        <div id="scanner-window"></div>
-        <div id="scanResult">Click "Start" to begin</div>
-        <button onclick="startScanner()">Start</button>
-        <button onclick="stopScanner()">Stop</button>
+  <div class="scanner-container">
+    <h2>Barcode Scanner</h2>
+    <div id="scanner-window">
+      <div class="scan-line" id="scanLine"></div>
     </div>
+    <div id="scanResult">Click "Start" to scan Coke can</div>
+    <button onclick="startScanner()">Start</button>
+    <button onclick="stopScanner()">Stop</button>
+  </div>
 
-    <script>
-        let isScanning = false;
+  <script>
+    let isScanning = false;
 
-        function updateResult(message) {
-            document.getElementById('scanResult').textContent = message;
-        }
+    function updateResult(message) {
+      document.getElementById('scanResult').textContent = message;
+    }
 
-        async function startScanner() {
-            if (isScanning) {
-                updateResult('Scanner already running');
-                return;
+    async function startScanner() {
+      if (isScanning) {
+        updateResult('Scanner already active');
+        return;
+      }
+
+      if (typeof Quagga === 'undefined') {
+        updateResult('Error: QuaggaJS not loaded');
+        console.error('Quagga not loaded');
+        return;
+      }
+
+      updateResult('Starting camera...');
+      try {
+        const stream = await navigator.mediaDevices.getUserMedia({
+          video: { facingMode: "environment" }
+        });
+        updateResult('Camera on, starting scanner...');
+        stream.getTracks().forEach(track => track.stop());
+
+        Quagga.init({
+          inputStream: {
+            type: "LiveStream",
+            target: document.getElementById('scanner-window'),
+            constraints: {
+              width: { ideal: 640 },
+              height: { ideal: 480 },
+              facingMode: "environment"
+            },
+            area: { // Full frame scanning
+              top: "0%",
+              right: "0%",
+              left: "0%",
+              bottom: "0%"
             }
+          },
+          decoder: {
+            readers: ["upc_reader"] // Only UPC for Coke
+          },
+          locate: true,
+          frequency: 20 // More frequent processing
+        }, (err) => {
+          if (err) {
+            updateResult('Failed to start: ' + err.message);
+            console.error('Init error:', err);
+            return;
+          }
 
-            if (typeof Quagga === 'undefined') {
-                updateResult('Error: QuaggaJS not loaded. Check network or CDN.');
-                return;
-            }
+          try {
+            Quagga.start();
+            isScanning = true;
+            document.getElementById('scanLine').style.display = 'block';
+            updateResult('Scanning - Point at Coke barcode');
+            console.log('Scanner active');
+          } catch (startErr) {
+            updateResult('Start failed: ' + startErr.message);
+            console.error('Start error:', startErr);
+            isScanning = false;
+          }
+        });
 
-            if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
-                updateResult('Error: Camera API not supported in this browser');
-                return;
-            }
+        Quagga.onDetected((result) => {
+          if (result && result.codeResult && result.codeResult.code) {
+            const code = result.codeResult.code;
+            updateResult(`Scanned: ${code}`);
+            console.log('Barcode:', code);
+            // Don’t stop automatically—keep scanning
+          }
+        });
 
-            try {
-                updateResult('Requesting camera access...');
-                const stream = await navigator.mediaDevices.getUserMedia({
-                    video: { facingMode: "environment" }
-                });
-                updateResult('Camera active, initializing scanner...');
-                stream.getTracks().forEach(track => track.stop());
+        Quagga.onProcessed(() => {
+          if (isScanning) {
+            console.log('Processing frame...');
+          }
+        });
 
-                Quagga.init({
-                    inputStream: {
-                        type: "LiveStream",
-                        target: document.getElementById('scanner-window'),
-                        constraints: {
-                            width: 640,
-                            height: 480,
-                            facingMode: "environment"
-                        },
-                        area: { // Define scanning area (full frame)
-                            top: "0%",
-                            right: "0%",
-                            left: "0%",
-                            bottom: "0%"
-                        }
-                    },
-                    decoder: {
-                        readers: [
-                            "ean_reader",       // Common product barcodes
-                            "upc_reader",       // US product barcodes
-                            "code_128_reader",  // Industrial barcodes
-                            "ean_8_reader"      // Shorter EAN codes
-                        ]
-                    },
-                    locate: true, // Try to locate barcode in frame
-                    frequency: 10, // Process 10 frames per second
-                    debug: true   // Enable console debug info
-                }, (err) => {
-                    if (err) {
-                        if (err.name === 'NotAllowedError') {
-                            updateResult('Camera permission denied. Please allow camera access and refresh.');
-                        } else if (err.name === 'NotFoundError') {
-                            updateResult('Error: No camera detected');
-                        } else {
-                            updateResult('Initialization error: ' + err.message);
-                        }
-                        console.error('Quagga init error:', err);
-                        return;
-                    }
+      } catch (error) {
+        updateResult('Camera failed: ' + error.message);
+        console.error('Camera error:', error);
+      }
+    }
 
-                    Quagga.start();
-                    isScanning = true;
-                    updateResult('Scanning... Hold barcode steady in view');
-                });
+    function stopScanner() {
+      if (!isScanning) {
+        updateResult('Scanner not running');
+        return;
+      }
 
-                Quagga.onDetected((result) => {
-                    if (result && result.codeResult && result.codeResult.code) {
-                        const code = result.codeResult.code;
-                        updateResult(`Scanned: ${code}`);
-                        console.log('Detected barcode:', code);
-                        // Stop after scan (optional):
-                        // stopScanner();
-                    }
-                });
-
-                // Visual feedback for processing
-                Quagga.onProcessed((result) => {
-                    if (result) {
-                        console.log('Frame processed:', result);
-                    }
-                });
-
-            } catch (error) {
-                updateResult('Camera access error: ' + error.message);
-                console.error('Camera error:', error);
-            }
-        }
-
-        function stopScanner() {
-            if (!isScanning) {
-                updateResult('Scanner not running');
-                return;
-            }
-
-            try {
-                Quagga.stop();
-                isScanning = false;
-                updateResult('Scanner stopped');
-            } catch (error) {
-                updateResult('Stop error: ' + error.message);
-                console.error('Stop error:', error);
-            }
-        }
-    </script>
+      try {
+        Quagga.stop();
+        isScanning = false;
+        document.getElementById('scanLine').style.display = 'none';
+        updateResult('Scanner stopped manually');
+        console.log('Scanner stopped');
+      } catch (error) {
+        updateResult('Stop error: ' + error.message);
+        console.error('Stop error:', error);
+      }
+    }
+  </script>
 </body>
+
 </html>
